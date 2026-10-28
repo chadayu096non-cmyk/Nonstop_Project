@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ASTRAL NEXUS // GALAXY AI HUD</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: JetBrains Mono & Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --hud-border: rgba(255, 255, 255, 0.14);
+      --hud-bg: rgba(4, 5, 12, 0.72);
+      --accent-primary: #38bdf8;
+      --accent-secondary: #f43f5e;
+      --accent-bridge: #e879f9;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000000;
+      color: #e2e8f0;
+      font-family: 'JetBrains Mono', monospace;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Subtle CRT scanline & cosmic vignette overlay */
+    .crt-overlay {
+      background:
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
+        radial-gradient(circle at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.75) 100%);
+      background-size: 100% 3px, 100% 100%;
+      pointer-events: none;
+    }
+
+    .hud-box {
+      background: rgba(3, 4, 10, 0.76);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+    }
+
+    .stage-item {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(8, 10, 20, 0.55);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+
+    .stage-item.active {
+      border-color: rgba(255, 255, 255, 0.88);
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.22), inset 0 0 10px rgba(255, 255, 255, 0.08);
+    }
+
+    .control-pill {
+      background: rgba(8, 10, 24, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      transition: all 0.2s ease;
+    }
+
+    .control-btn {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      padding: 5px 9px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .control-btn.active {
+      background: rgba(255, 255, 255, 0.92);
+      color: #020617;
+      border-color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+    }
+
+    /* Frame Ratio Mode */
+    .frame-9-16 {
+      max-width: 500px;
+      height: 100vh;
+      margin: 0 auto;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 80px rgba(0, 0, 0, 0.95);
+    }
+
+    .frame-full {
+      max-width: 100vw;
+      height: 100vh;
+      margin: 0;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.65; }
+      50% { opacity: 1; }
+    }
+
+    .animate-pulse-fast {
+      animation: pulseGlow 1.6s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-black flex items-center justify-center overflow-hidden">
+
+  <!-- MAIN APP CONTAINER (Supports 9:16 TikTok vertical frame or Fullscreen) -->
+  <div id="appFrame" class="frame-9-16 w-full relative flex flex-col justify-between bg-[#010206] overflow-hidden select-none">
+
+    <!-- CRT Scanline Overlay -->
+    <div class="crt-overlay absolute inset-0 z-30"></div>
+
+    <!-- ===================================================== -->
+    <!-- TOP TELEMETRY HUD HEADER                              -->
+    <!-- ===================================================== -->
+    <header class="relative z-20 pt-2.5 px-3 pb-1 border-b border-white/10 bg-black/80">
+      <!-- Top Title Row -->
+      <div class="flex items-center justify-between text-[9px] sm:text-[10px] tracking-widest text-slate-300 font-semibold">
+        <div class="flex items-center gap-1.5">
+          <span class="inline-block w-1.5 h-3 bg-white animate-pulse"></span>
+          <span class="text-white font-bold">ASTRAL-9 + QUASAR + NEBULA BRAIN</span>
+        </div>
+        <div class="text-[8px] sm:text-[9px] text-slate-400 flex items-center gap-2">
+          <span>COSMIC TOPOLOGY • ONE PIPELINE</span>
+          <span id="runIdLabel" class="text-slate-200">RUN 0842</span>
+        </div>
+      </div>
+
+      <!-- 6-Metric Subheader Labels -->
+      <div class="grid grid-cols-6 gap-1 mt-1.5 text-[7px] sm:text-[8px] tracking-wider text-slate-500 uppercase">
+        <div>PARSEC [B]</div>
+        <div>HORIZON [D]</div>
+        <div>ENTROPY H</div>
+        <div>NEBULA EXPLORE</div>
+        <div>QUASAR CRITIC</div>
+        <div class="text-right">ASTRAL COLLECT</div>
+      </div>
+
+      <!-- Top Horizon Trajectory Canvas -->
+      <div class="relative w-full h-7 my-0.5">
+        <canvas id="topWaveCanvas" class="w-full h-full block"></canvas>
+      </div>
+
+      <!-- Secondary Telemetry Micro-Row -->
+      <div class="flex flex-wrap items-center justify-between text-[7px] sm:text-[8px] text-slate-400 tracking-wider border-t border-white/10 pt-1">
+        <div>
+          SEARCH TOPOLOGY: <span id="statCandidates" class="text-slate-200">N=64</span> •
+          REFINEMENTS: <span id="statRefinements" class="text-slate-200">R=6</span> •
+          STARS: <span id="statNodes" class="text-white font-semibold">2,840</span> •
+          BRIDGES: <span id="statLinks" class="text-fuchsia-300">18</span>
+        </div>
+        <div class="hidden sm:block text-slate-400">
+          SAMPLING T=0.82 / T=0.02
+        </div>
+      </div>
+    </header>
+
+    <!-- ===================================================== -->
+    <!-- CENTER GALAXY VISUALIZATION STAGE                     -->
+    <!-- ===================================================== -->
+    <main class="relative flex-1 w-full overflow-hidden bg-black">
+      <!-- Interactive Primary Galaxy Canvas -->
+      <canvas id="galaxyCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+      <!-- Floating Top-Center Handoff Callout Box (Matches reference aesthetic) -->
+      <div id="handoffBox" class="hud-box absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded pointer-events-none z-20 min-w-[235px] sm:min-w-[265px] transition-all duration-300">
+        <div class="flex items-center justify-between text-[9px] sm:text-[10px] font-bold tracking-wider text-white">
+          <span id="handoffTitle">HANDOFF • NEBULA → QUASAR</span>
+          <span id="handoffCoords" class="text-[8px] font-normal text-cyan-300">RA 14h29m</span>
+        </div>
+        <div id="handoffSub1" class="text-[8px] text-slate-400 tracking-wide mt-0.5">
+          WIDE STARDUST IN, RELATIVISTIC JET OUT
+        </div>
+        <div id="handoffSub2" class="text-[8px] text-fuchsia-400 font-medium tracking-wide">
+          ASTRAL: FOLDING CONSTELLATION BRIDGES
+        </div>
+      </div>
+
+      <!-- Left & Right Floating Telemetry Badges -->
+      <div class="absolute top-20 left-2.5 hud-box px-2 py-1 rounded text-[8px] tracking-wider text-slate-300 pointer-events-none z-20">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 mr-1"></span>
+        <span id="leftBadgeText">ASTRAL-9 NEBULA • BREADTH T=0.8</span>
+      </div>
+
+      <div class="absolute top-20 right-2.5 hud-box px-2 py-1 rounded text-[8px] tracking-wider text-slate-300 pointer-events-none z-20">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-white mr-1"></span>
+        <span id="rightBadgeText">QUASAR OPUS 5.5 • DEPTH T=0.0</span>
+      </div>
+
+      <!-- Floating Bottom-Right Legend inside Canvas -->
+      <div class="absolute bottom-6 right-2.5 hud-box px-2.5 py-1.5 rounded text-[8px] tracking-wider space-y-0.5 pointer-events-none z-20">
+        <div class="flex items-center gap-1.5 text-slate-300">
+          <span id="legendDot1" class="w-1.5 h-1.5 rounded-full bg-cyan-300"></span>
+          <span>NEBULA (EXPLORE)</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-white font-semibold">
+          <span id="legendDot2" class="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#fff]"></span>
+          <span>QUASAR JET (OPTIMAL)</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-fuchsia-400">
+          <span id="legendDot3" class="w-1.5 h-1.5 rounded-full bg-fuchsia-400"></span>
+          <span>ASTRAL (BRIDGE)</span>
+        </div>
+      </div>
+
+      <!-- Interactive Hint Toast (fades out automatically) -->
+      <div id="touchHint" class="absolute bottom-7 left-2.5 text-[8px] text-slate-400 bg-black/60 border border-white/10 px-2 py-1 rounded pointer-events-none z-20 transition-opacity duration-700">
+        ✨ แตะหรือลากบนหน้าจอเพื่อจุดระเบิด SUPERNOVA
+      </div>
+
+      <!-- Bottom Canvas Status Strip -->
+      <div class="absolute bottom-0 inset-x-0 px-3 py-1 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center justify-between text-[7px] sm:text-[8px] text-slate-400 tracking-wider pointer-events-none z-20">
+        <div>SINGULARITY RECOVERY • NEBULA → QUASAR HANDOFF</div>
+        <div>PATHS: <span id="pathCountLabel" class="text-white">64</span> • BRIDGES: <span id="bridgeCountLabel" class="text-fuchsia-300">12</span></div>
+      </div>
+    </main>
+
+    <!-- ===================================================== -->
+    <!-- BOTTOM 3-COLUMN HUD DASHBOARD                         -->
+    <!-- ===================================================== -->
+    <footer class="relative z-20 px-2.5 pt-1.5 pb-2.5 bg-[#020308] border-t border-white/15">
+      <div class="grid grid-cols-12 gap-2">
+
+        <!-- COLUMN 1: GRAVITATIONAL WAVE & ENTROPY OSCILLOSCOPE -->
+        <div class="col-span-4 hud-box rounded p-1.5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-[7px] sm:text-[8px] text-slate-400 tracking-wider border-b border-white/10 pb-0.5">
+              <span>WAVE ENTROPY</span>
+              <span class="text-slate-300">T=0.8 VS 0.0</span>
+            </div>
+            <div class="flex items-center justify-between text-[6.5px] sm:text-[7px] text-slate-400 mt-1">
+              <span>NEBULA <b id="entropyValA" class="text-cyan-300">H=2.74</b></span>
+              <span>QUASAR <b id="entropyValB" class="text-white">H=0.12</b></span>
+            </div>
+          </div>
+
+          <div class="relative w-full h-20 sm:h-24 my-1">
+            <canvas id="entropyCanvas" class="w-full h-full block"></canvas>
+          </div>
+
+          <div class="text-[6.5px] sm:text-[7px] text-slate-400 tracking-wider border-t border-white/10 pt-0.5 flex justify-between">
+            <span>SINGULARITY PULSE</span>
+            <span id="spikeStatus" class="text-fuchsia-300">LOCKED</span>
+          </div>
+        </div>
+
+        <!-- COLUMN 2: 4-STAGE REFINEMENT PIPELINE -->
+        <div class="col-span-4 hud-box rounded p-1.5 flex flex-col justify-between">
+          <div class="text-[7px] sm:text-[8px] text-slate-400 tracking-wider border-b border-white/10 pb-0.5 flex justify-between">
+            <span>COSMIC PIPELINE</span>
+            <span>4 STAGES</span>
+          </div>
+
+          <div class="flex flex-col gap-1 my-1" id="pipelineStages">
+            <!-- Stage 1 -->
+            <div data-stage="0" class="stage-item rounded px-1.5 py-1 flex items-center justify-between">
+              <span class="text-[7.5px] sm:text-[8px] font-semibold text-slate-200">1. NEBULA BREADTH</span>
+              <span class="text-[6.5px] text-slate-400 hidden sm:inline">64 ARMS</span>
+            </div>
+            <!-- Stage 2 -->
+            <div data-stage="1" class="stage-item active rounded px-1.5 py-1 flex items-center justify-between">
+              <span class="text-[7.5px] sm:text-[8px] font-semibold text-white">2. QUASAR CRITIC</span>
+              <span class="text-[6.5px] text-cyan-300 hidden sm:inline">JET SYNC</span>
+            </div>
+            <!-- Stage 3 -->
+            <div data-stage="2" class="stage-item rounded px-1.5 py-1 flex items-center justify-between">
+              <span class="text-[7.5px] sm:text-[8px] font-semibold text-slate-200">3. WORMHOLE FOLD</span>
+              <span class="text-[6.5px] text-slate-400 hidden sm:inline">WARP FIX</span>
+            </div>
+            <!-- Stage 4 -->
+            <div data-stage="3" class="stage-item rounded px-1.5 py-1 flex items-center justify-between">
+              <span class="text-[7.5px] sm:text-[8px] font-semibold text-slate-200">4. ASTRAL COLLECT</span>
+              <span class="text-[6.5px] text-fuchsia-300 hidden sm:inline">BRIDGED</span>
+            </div>
+          </div>
+
+          <div class="text-[6.5px] sm:text-[7px] text-slate-400 tracking-wider border-t border-white/10 pt-0.5 truncate">
+            MODE: <span id="activeModeFooter" class="text-white">COSMIC QUASAR TREE</span>
+          </div>
+        </div>
+
+        <!-- COLUMN 3: ASTRAL CONVERGENCE GRAPH -->
+        <div class="col-span-4 hud-box rounded p-1.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[7px] sm:text-[8px] text-slate-400 tracking-wider border-b border-white/10 pb-0.5">
+            <span>ASTRAL • STARS</span>
+            <span id="collectedCounter" class="text-fuchsia-400 font-bold">2,480</span>
+          </div>
+
+          <div class="relative w-full h-20 sm:h-24 my-1">
+            <canvas id="convergenceCanvas" class="w-full h-full block"></canvas>
+          </div>
+
+          <div class="text-[6.5px] sm:text-[7px] text-slate-400 tracking-wider border-t border-white/10 pt-0.5 flex justify-between">
+            <span>0s</span>
+            <span class="text-slate-300">CONVERGENCE 99.4%</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Micro Footnote -->
+      <div class="mt-1.5 flex items-center justify-between text-[7px] text-slate-500 tracking-widest">
+        <div>ARCHITECTURE: HYBRID SINGULARITY + QUASAR DEPTH + CONSTELLATION BRIDGES</div>
+        <div>FPS: <span id="fpsCounter" class="text-slate-300">60</span></div>
+      </div>
+    </footer>
+
+    <!-- ===================================================== -->
+    <!-- FLOATING CONTROLLER BAR (Can be hidden for recording) -->
+    <!-- ===================================================== -->
+    <div id="controlDock" class="control-pill absolute bottom-36 left-1/2 -translate-x-1/2 z-40 px-2.5 py-2 rounded-xl flex flex-col gap-1.5 shadow-2xl w-[94%] max-w-[460px] transition-all duration-300">
+      <div class="flex items-center justify-between border-b border-white/10 pb-1">
+        <span class="text-[9px] font-bold tracking-wider text-cyan-300 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          GALAXY VISUALIZER CONTROLS
+        </span>
+        <div class="flex items-center gap-1">
+          <button id="btnAspect" class="control-btn" title="สลับสัดส่วนจอ 9:16 หรือ เต็มจอ">9:16 TIKTOK</button>
+          <button id="btnHideUI" class="control-btn !border-fuchsia-500/50 !text-fuchsia-300" title="ซ่อนปุ่มเพื่ออัดคลิป (กดปุ่ม H หรือแตะมุมขวาบน 2 ครั้งเพื่อเปิดคืน)">
+            🎥 ซ่อนปุ่มอัดคลิป
+          </button>
+        </div>
+      </div>
+
+      <!-- Mode Switcher Row -->
+      <div class="flex items-center gap-1 overflow-x-auto pb-0.5">
+        <span class="text-[8px] text-slate-400 mr-1 shrink-0">MODE:</span>
+        <button data-mode="tree" class="mode-btn control-btn active flex-1">1. QUASAR TREE</button>
+        <button data-mode="spiral" class="mode-btn control-btn flex-1">2. SPIRAL GALAXY</button>
+        <button data-mode="wormhole" class="mode-btn control-btn flex-1">3. WORMHOLE</button>
+      </div>
+
+      <!-- Palette & Action Row -->
+      <div class="flex items-center justify-between gap-1">
+        <div class="flex items-center gap-1 flex-1 overflow-x-auto">
+          <span class="text-[8px] text-slate-400 mr-1 shrink-0">THEME:</span>
+          <button data-palette="0" class="palette-btn control-btn active flex-1">🌌 NEBULA VIOLET</button>
+          <button data-palette="1" class="palette-btn control-btn flex-1">☀️ SUPERNOVA GOLD</button>
+          <button data-palette="2" class="palette-btn control-btn flex-1">🟢 AURORA BIO</button>
+        </div>
+        <button id="btnSupernova" class="control-btn !bg-white/15 !text-white !border-white/40 font-bold shrink-0">
+          💥 PULSE
+        </button>
+      </div>
+    </div>
+
+    <!-- Subtle Restore UI Button when in Record Mode -->
+    <button id="btnRestoreUI" class="hidden absolute top-12 right-3 z-50 bg-black/70 hover:bg-black/90 text-[9px] text-slate-300 border border-white/20 px-2.5 py-1 rounded-full backdrop-blur-md transition-opacity opacity-30 hover:opacity-100">
+      ⚙️ แสดงเมนู (H)
+    </button>
+
+  </div>
+
+  <!-- ===================================================== -->
+  <!-- APPLICATION LOGIC & 60FPS GALAXY CANVAS ENGINE        -->
+  <!-- ===================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // --- COLOR PALETTES ---
+      const PALETTES = [
+        {
+          name: 'NEBULA VIOLET & CYAN',
+          nebulaA: [91, 33, 182],     // Deep Violet
+          nebulaB: [14, 165, 233],    // Cosmic Cyan
+          nebulaC: [217, 70, 239],    // Magenta
+          filament: [186, 230, 253],  // Ice Cyan-White
+          quasarCore: '#ffffff',
+          quasarGlow: '#38bdf8',
+          bridgeMain: '#e879f9',
+          bridgeSecondary: '#f43f5e',
+          starTint: ['#e0f2fe', '#f5d0fe', '#ffffff', '#7dd3fc']
+        },
+        {
+          name: 'SUPERNOVA GOLD & HORIZON',
+          nebulaA: [180, 83, 9],      // Amber Deep
+          nebulaB: [225, 29, 72],     // Crimson Nebula
+          nebulaC: [251, 191, 36],    // Solar Gold
+          filament: [254, 243, 199],  // Warm Starlight
+          quasarCore: '#ffffff',
+          quasarGlow: '#fbbf24',
+          bridgeMain: '#38bdf8',
+          bridgeSecondary: '#f97316',
+          starTint: ['#fef3c7', '#fde68a', '#ffffff', '#bae6fd']
+        },
+        {
+          name: 'BIOLUMINESCENT COSMOS',
+          nebulaA: [6, 95, 70],       // Deep Emerald
+          nebulaB: [37, 99, 235],     // Cosmic Sapphire
+          nebulaC: [16, 185, 129],    // Bio Mint
+          filament: [167, 243, 208],  // Soft Mint-White
+          quasarCore: '#ffffff',
+          quasarGlow: '#10b981',
+          bridgeMain: '#a855f7',
+          bridgeSecondary: '#22d3ee',
+          starTint: ['#d1fae5', '#a7f3d0', '#ffffff', '#c4b5fd']
+        }
+      ];
+
+      // --- STATE ---
+      const state = {
+        mode: 'tree',          // 'tree' | 'spiral' | 'wormhole'
+        paletteIndex: 0,
+        activeStage: 1,
+        aspectMode: '9:16',    // '9:16' | 'full'
+        uiHidden: false,
+        time: 0,
+        frameCount: 0,
+        lastFpsUpdate: performance.now(),
+        fps: 60,
+        collectedStars: 2480,
+        runId: 842,
+        width: 0,
+        height: 0,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+        // Entities
+        bgStars: [],
+        nebulaClouds: [],
+        treeBranches: [],
+        treeNodes: [],
+        quasarPath: [],
+        spiralStars: [],
+        wormholeRings: [],
+        bridges: [],
+        shockwaves: [],
+        supernovaParticles: [],
+        floatingLabels: [],
+        // Graphs history
+        entropyWaveA: [],
+        entropyWaveB: [],
+        convergenceHistoryA: [],
+        convergenceHistoryB: []
+      };
+
+      // --- DOM ELEMENTS ---
+      const appFrame = document.getElementById('appFrame');
+      const galaxyCanvas = document.getElementById('galaxyCanvas');
+      const gCtx = galaxyCanvas.getContext('2d');
+
+      const topWaveCanvas = document.getElementById('topWaveCanvas');
+      const topCtx = topWaveCanvas.getContext('2d');
+
+      const entropyCanvas = document.getElementById('entropyCanvas');
+      const entCtx = entropyCanvas.getContext('2d');
+
+      const convergenceCanvas = document.getElementById('convergenceCanvas');
+      const convCtx = convergenceCanvas.getContext('2d');
+
+      // Labels
+      const handoffTitle = document.getElementById('handoffTitle');
+      const handoffCoords = document.getElementById('handoffCoords');
+      const handoffSub1 = document.getElementById('handoffSub1');
+      const handoffSub2 = document.getElementById('handoffSub2');
+      const activeModeFooter = document.getElementById('activeModeFooter');
+      const statNodes = document.getElementById('statNodes');
+      const statLinks = document.getElementById('statLinks');
+      const collectedCounter = document.getElementById('collectedCounter');
+      const entropyValA = document.getElementById('entropyValA');
+      const entropyValB = document.getElementById('entropyValB');
+      const spikeStatus = document.getElementById('spikeStatus');
+      const fpsCounter = document.getElementById('fpsCounter');
+      const touchHint = document.getElementById('touchHint');
+
+      // Utility functions
+      const rand = (min, max) => Math.random() * (max - min) + min;
+      const randInt = (min, max) => Math.floor(rand(min, max + 1));
+      const lerp = (a, b, t) => a + (b - a) * t;
+
+      // =====================================================
+      // INITIALIZATION & SCENE GENERATION
+      // =====================================================
+      function resizeAllCanvases() {
+        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        // Main Galaxy Canvas
+        const rect = galaxyCanvas.getBoundingClientRect();
+        state.width = rect.width;
+        state.height = rect.height;
+        galaxyCanvas.width = rect.width * state.dpr;
+        galaxyCanvas.height = rect.height * state.dpr;
+        gCtx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+
+        // Mini HUD Canvases
+        [
+          [topWaveCanvas, topCtx],
+          [entropyCanvas, entCtx],
+          [convergenceCanvas, convCtx]
+        ].forEach(([canvas, ctx]) => {
+          const r = canvas.getBoundingClientRect();
+          canvas.width = r.width * state.dpr;
+          canvas.height = r.height * state.dpr;
+          ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+        });
+
+        buildCosmicScene();
+      }
+
+      function buildCosmicScene() {
+        const w = state.width;
+        const h = state.height;
+        if (!w || !h) return;
+
+        // 1. Background 3D Parallax Stars
+        state.bgStars = [];
+        for (let i = 0; i < 240; i++) {
+          state.bgStars.push({
+            x: rand(0, w),
+            y: rand(0, h),
+            z: rand(0.2, 1.0),
+            size: rand(0.5, 1.9),
+            twinkleSpeed: rand(1.5, 5.0),
+            twinklePhase: rand(0, Math.PI * 2),
+            colorIdx: randInt(0, 3)
+          });
+        }
+
+        // 2. Volumetric Nebula Dust Clouds
+        state.nebulaClouds = [
+          { x: w * 0.5, y: h * 0.58, r: Math.max(w, h) * 0.46, type: 'A', driftSpeed: 0.3, phase: 0 },
+          { x: w * 0.35, y: h * 0.38, r: Math.max(w, h) * 0.38, type: 'B', driftSpeed: -0.25, phase: 2.1 },
+          { x: w * 0.68, y: h * 0.32, r: Math.max(w, h) * 0.35, type: 'C', driftSpeed: 0.2, phase: 4.2 },
+          { x: w * 0.5, y: h * 0.88, r: Math.max(w, h) * 0.32, type: 'B', driftSpeed: 0.4, phase: 1.1 }
+        ];
+
+        // 3. Build Mode 1: Cosmic Tree & Quasar Jet (Faithful to Screenshot + Galaxy Upgrade)
+        buildCosmicTree(w, h);
+
+        // 4. Build Mode 2: 3D Spiral Galaxy
+        buildSpiralGalaxy(w, h);
+
+        // 5. Build Mode 3: Wormhole Singularity
+        buildWormhole(w, h);
+
+        // 6. Initialize Active Constellation Bridges
+        state.bridges = [];
+        for (let i = 0; i < 6; i++) {
+          spawnConstellationBridge();
+        }
+      }
+
+      // --- BUILD MODE 1: COSMIC TREE & QUASAR JET ---
+      function buildCosmicTree(w, h) {
+        state.treeBranches = [];
+        state.treeNodes = [];
+
+        const originX = w * 0.5;
+        const originY = h * 0.90;
+
+        // Recursive function to create dense, organic upward cosmic filaments
+        function growBranch(x, y, angle, length, depth, maxDepth, isSubBush) {
+          const endX = x + Math.cos(angle) * length;
+          const endY = y + Math.sin(angle) * length;
+
+          // Curvature control point
+          const ctrlX = (x + endX) * 0.5 + rand(-length * 0.18, length * 0.18);
+          const ctrlY = (y + endY) * 0.5 + rand(-length * 0.1, length * 0.1);
+
+          state.treeBranches.push({
+            x1: x, y1: y,
+            cx: ctrlX, cy: ctrlY,
+            x2: endX, y2: endY,
+            depth: depth,
+            maxDepth: maxDepth,
+            alpha: isSubBush
+              ? lerp(0.28, 0.05, depth / maxDepth)
+              : lerp(0.36, 0.04, depth / maxDepth),
+            width: isSubBush
+              ? Math.max(0.35, (maxDepth - depth) * 0.22)
+              : Math.max(0.4, (maxDepth - depth) * 0.28),
+            pulseOffset: rand(0, Math.PI * 2)
+          });
+
+          // Save candidate constellation nodes in mid-to-upper canopy
+          if (!isSubBush && depth >= 2 && Math.random() < 0.42) {
+            state.treeNodes.push({
+              x: endX,
+              y: endY,
+              depth: depth,
+              radius: rand(1.2, 2.8),
+              energy: rand(0.2, 1.0)
+            });
+          }
+
+          if (depth < maxDepth) {
+            const count = depth === 0 ? 1 : (Math.random() < 0.65 ? 2 : 3);
+            for (let i = 0; i < count; i++) {
+              const spread = isSubBush ? 0.34 : lerp(0.32, 0.18, depth / maxDepth);
+              const nextAngle = angle + rand(-spread, spread);
+              const nextLen = length * rand(0.72, 0.88);
+              growBranch(endX, endY, nextAngle, nextLen, depth + 1, maxDepth, isSubBush);
+            }
+          }
+        }
+
+        // Main central cosmic fan (28 rays sweeping from bottom singularity like the screenshot)
+        const rayCount = 30;
+        for (let i = 0; i < rayCount; i++) {
+          const t = i / (rayCount - 1);
+          // Sweep from -162 deg to -18 deg (upward fan)
+          const angle = lerp(-Math.PI * 0.88, -Math.PI * 0.12, t);
+          // Longer in center-top, slightly shorter on sides
+          const centerWeight = 1 - Math.abs(t - 0.5) * 0.85;
+          const baseLen = h * rand(0.16, 0.23) * centerWeight;
+          growBranch(originX, originY, angle, baseLen, 0, 5, false);
+        }
+
+        // Secondary mini proto-galaxy trees at bottom left & right (matching screenshot's bottom bushes)
+        const subOrigins = [
+          { x: w * 0.14, y: h * 0.90, scale: 0.55 },
+          { x: w * 0.28, y: h * 0.91, scale: 0.45 },
+          { x: w * 0.74, y: h * 0.90, scale: 0.52 },
+          { x: w * 0.87, y: h * 0.91, scale: 0.42 }
+        ];
+
+        subOrigins.forEach((sub) => {
+          for (let j = 0; j < 7; j++) {
+            const a = lerp(-Math.PI * 0.82, -Math.PI * 0.18, j / 6);
+            growBranch(sub.x, sub.y, a, h * 0.08 * sub.scale, 0, 4, true);
+          }
+        });
+
+        // Build the Quasar Lightning Jet (Optimal Path from bottom singularity to top apex)
+        buildQuasarJet(w, h, originX, originY);
+      }
+
+      function buildQuasarJet(w, h, originX, originY) {
+        state.quasarPath = [];
+        const apexX = w * 0.62;
+        const apexY = h * 0.08;
+        const segments = 22;
+
+        for (let i = 0; i <= segments; i++) {
+          const t = i / segments;
+          // Slight S-curve trajectory matching the screenshot's iconic white lightning beam
+          const curveX = lerp(originX, apexX, t) + Math.sin(t * Math.PI * 2.2) * (w * 0.035) * (1 - t * 0.5);
+          const curveY = lerp(originY, apexY, t);
+          state.quasarPath.push({
+            baseX: curveX,
+            baseY: curveY,
+            x: curveX,
+            y: curveY,
+            t: t
+          });
+        }
+      }
+
+      // --- BUILD MODE 2: 3D SPIRAL GALAXY ---
+      function buildSpiralGalaxy(w, h) {
+        state.spiralStars = [];
+        const arms = 4;
+        const totalStars = 1400;
+        const maxRadius = Math.min(w, h) * 0.46;
+
+        for (let i = 0; i < totalStars; i++) {
+          const armIndex = i % arms;
+          const distRatio = Math.pow(Math.random(), 0.72); // More dense near core
+          const radius = distRatio * maxRadius;
+          const spinAngle = distRatio * 4.5 + (armIndex * Math.PI * 2) / arms;
+          const scatter = (1 - distRatio * 0.4) * rand(-0.45, 0.45);
+
+          state.spiralStars.push({
+            radius: radius,
+            angle: spinAngle + scatter,
+            yOffset: rand(-18, 18) * (1 - distRatio * 0.7),
+            size: distRatio < 0.15 ? rand(1.4, 3.0) : rand(0.6, 2.1),
+            speed: lerp(0.012, 0.0025, distRatio),
+            colorIdx: randInt(0, 3),
+            alpha: lerp(0.95, 0.25, distRatio),
+            isNode: Math.random() < 0.04 && distRatio > 0.15 && distRatio < 0.85
+          });
+        }
+      }
+
+      // --- BUILD MODE 3: WORMHOLE SINGULARITY ---
+      function buildWormhole(w, h) {
+        state.wormholeRings = [];
+        const ringCount = 26;
+        for (let i = 0; i < ringCount; i++) {
+          const t = i / (ringCount - 1); // 0 to 1 (top funnel to bottom funnel)
+          const distFromCenter = Math.abs(t - 0.5) * 2; // 1 at ends, 0 at throat
+          state.wormholeRings.push({
+            t: t,
+            distFromCenter: distFromCenter,
+            radiusX: lerp(w * 0.07, w * 0.43, Math.pow(distFromCenter, 1.35)),
+            radiusY: lerp(h * 0.02, h * 0.085, Math.pow(distFromCenter, 1.35)),
+            yPos: lerp(h * 0.12, h * 0.88, t),
+            rotation: rand(0, Math.PI * 2),
+            speed: lerp(0.03, 0.006, distFromCenter) * (t < 0.5 ? 1 : -1)
+          });
+        }
+      }
+
+      // --- CONSTELLATION LASER BRIDGES ("ASTRAL SPIDER NODES") ---
+      function spawnConstellationBridge(targetX, targetY) {
+        const w = state.width;
+        const h = state.height;
+        if (!w || !h) return;
+
+        let p1, p2;
+        if (state.mode === 'tree' && state.treeNodes.length > 10) {
+          const n1 = state.treeNodes[randInt(0, state.treeNodes.length - 1)];
+          const n2 = state.treeNodes[randInt(0, state.treeNodes.length - 1)];
+          p1 = { x: n1.x, y: n1.y };
+          p2 = targetX !== undefined ? { x: targetX, y: targetY } : { x: n2.x, y: n2.y };
+        } else {
+          p1 = { x: rand(w * 0.18, w * 0.82), y: rand(h * 0.16, h * 0.72) };
+          p2 = targetX !== undefined
+            ? { x: targetX, y: targetY }
+            : { x: rand(w * 0.18, w * 0.82), y: rand(h * 0.14, h * 0.68) };
+        }
+
+        // Also anchor some bridges directly to the Quasar Jet for the authentic screenshot look
+        if (state.mode === 'tree' && state.quasarPath.length > 0 && Math.random() < 0.65) {
+          const qNode = state.quasarPath[randInt(5, state.quasarPath.length - 3)];
+          p1 = { x: qNode.x, y: qNode.y };
+        }
+
+        const labels = [
+          'quasar: fixed, verified',
+          'astral_bridge // ΔE -0.94',
+          'nebula_lock: RA 14h29m',
+          'wormhole_sync: OK',
+          'cluster_09: converged'
+        ];
+
+        state.bridges.push({
+          x1: p1.x,
+          y1: p1.y,
+          x2: p2.x,
+          y2: p2.y,
+          progress: 0,
+          life: 1.0,
+          decay: rand(0.004, 0.009),
+          label: labels[randInt(0, labels.length - 1)],
+          hasLabel: Math.random() < 0.55
+        });
+
+        // Spawn shockwave at destination
+        state.shockwaves.push({
+          x: p2.x,
+          y: p2.y,
+          r: 2,
+          maxR: rand(18, 42),
+          alpha: 0.95
+        });
+
+        if (state.bridges.length > 9) {
+          state.bridges.shift();
+        }
+      }
+
+      // --- TRIGGER SUPERNOVA BURST (Interactive Click / Tap / Button) ---
+      function triggerSupernova(x, y) {
+        const cx = x !== undefined ? x : rand(state.width * 0.25, state.width * 0.75);
+        const cy = y !== undefined ? y : rand(state.height * 0.2, state.height * 0.65);
+
+        // Multiple expanding shockwave rings
+        for (let i = 0; i < 3; i++) {
+          state.shockwaves.push({
+            x: cx,
+            y: cy,
+            r: 2 + i * 6,
+            maxR: 55 + i * 35,
+            alpha: 1.0
+          });
+        }
+
+        // Burst particles
+        for (let i = 0; i < 48; i++) {
+          const angle = rand(0, Math.PI * 2);
+          const speed = rand(0.8, 5.2);
+          state.supernovaParticles.push({
+            x: cx,
+            y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: rand(1.0, 3.2),
+            alpha: 1.0,
+            decay: rand(0.012, 0.028),
+            colorIdx: randInt(0, 3)
+          });
+        }
+
+        // Connect 2 instant Constellation Bridges to this Supernova point
+        spawnConstellationBridge(cx, cy);
+        spawnConstellationBridge(cx, cy);
+
+        // Increment star telemetry
+        state.collectedStars += randInt(12, 45);
+        collectedCounter.textContent = state.collectedStars.toLocaleString();
+        statNodes.textContent = (state.collectedStars + 360).toLocaleString();
+      }
+
+      // =====================================================
+      // RENDERING PIPELINE (60 FPS)
+      // =====================================================
+      function renderGalaxyCanvas() {
+        const w = state.width;
+        const h = state.height;
+        const pal = PALETTES[state.paletteIndex];
+
+        // 1. Deep Space OLED Trail Clear
+        gCtx.globalCompositeOperation = 'source-over';
+        gCtx.fillStyle = 'rgba(1, 2, 6, 0.34)';
+        gCtx.fillRect(0, 0, w, h);
+
+        // Switch to Additive Blending for glowing cosmic light
+        gCtx.globalCompositeOperation = 'lighter';
+
+        // 2. Render Volumetric Nebula Clouds
+        state.nebulaClouds.forEach((cloud) => {
+          const cx = cloud.x + Math.sin(state.time * cloud.driftSpeed + cloud.phase) * 28;
+          const cy = cloud.y + Math.cos(state.time * cloud.driftSpeed * 0.8 + cloud.phase) * 18;
+          const rgb = cloud.type === 'A' ? pal.nebulaA : (cloud.type === 'B' ? pal.nebulaB : pal.nebulaC);
+
+          const grad = gCtx.createRadialGradient(cx, cy, 5, cx, cy, cloud.r);
+          grad.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.14)`);
+          grad.addColorStop(0.5, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.05)`);
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+          gCtx.fillStyle = grad;
+          gCtx.beginPath();
+          gCtx.arc(cx, cy, cloud.r, 0, Math.PI * 2);
+          gCtx.fill();
+        });
+
+        // 3. Render 3D Parallax Twinkling Starfield
+        state.bgStars.forEach((star) => {
+          star.y -= star.z * 0.15;
+          if (star.y < 0) star.y = h;
+
+          const twinkle = 0.35 + 0.65 * Math.sin(state.time * star.twinkleSpeed + star.twinklePhase);
+          gCtx.fillStyle = pal.starTint[star.colorIdx];
+          gCtx.globalAlpha = twinkle * star.z * 0.75;
+          gCtx.beginPath();
+          gCtx.arc(star.x, star.y, star.size * star.z, 0, Math.PI * 2);
+          gCtx.fill();
+        });
+        gCtx.globalAlpha = 1.0;
+
+        // 4. Mode-Specific Cosmic Geometry
+        if (state.mode === 'tree') {
+          renderModeCosmicTree(w, h, pal);
+        } else if (state.mode === 'spiral') {
+          renderModeSpiralGalaxy(w, h, pal);
+        } else if (state.mode === 'wormhole') {
+          renderModeWormhole(w, h, pal);
+        }
+
+        // 5. Render Constellation Laser Bridges ("Astral Spider Brain")
+        renderConstellationBridges(pal);
+
+        // 6. Render Shockwaves & Supernova Particles
+        renderShockwavesAndParticles(pal);
+
+        gCtx.globalCompositeOperation = 'source-over';
+      }
+
+      // --- RENDER MODE 1: COSMIC TREE & QUASAR JET ---
+      function renderModeCosmicTree(w, h, pal) {
+        const originX = w * 0.5;
+        const originY = h * 0.90;
+        const filRGB = pal.filament;
+
+        // Horizon Cosmic Dust Strip at bottom (matching screenshot's city/horizon lights)
+        const horizonGrad = gCtx.createLinearGradient(0, originY - 12, 0, originY + 25);
+        horizonGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        horizonGrad.addColorStop(0.5, `rgba(${pal.nebulaB[0]}, ${pal.nebulaB[1]}, ${pal.nebulaB[2]}, 0.16)`);
+        horizonGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        gCtx.fillStyle = horizonGrad;
+        gCtx.fillRect(0, originY - 12, w, 37);
+
+        // Draw Tree Branches (Stardust Filaments)
+        gCtx.lineCap = 'round';
+        for (let i = 0; i < state.treeBranches.length; i++) {
+          const b = state.treeBranches[i];
+          const shimmer = 0.75 + 0.25 * Math.sin(state.time * 2.2 + b.pulseOffset);
+          gCtx.strokeStyle = `rgba(${filRGB[0]}, ${filRGB[1]}, ${filRGB[2]}, ${b.alpha * shimmer})`;
+          gCtx.lineWidth = b.width;
+          gCtx.beginPath();
+          gCtx.moveTo(b.x1, b.y1);
+          gCtx.quadraticCurveTo(b.cx, b.cy, b.x2, b.y2);
+          gCtx.stroke();
+        }
+
+        // Draw Star Clusters on Tree Canopy
+        for (let i = 0; i < state.treeNodes.length; i += 2) {
+          const n = state.treeNodes[i];
+          const pulse = 0.4 + 0.6 * Math.sin(state.time * 3 + i);
+          gCtx.fillStyle = `rgba(${filRGB[0]}, ${filRGB[1]}, ${filRGB[2]}, ${0.25 * pulse})`;
+          gCtx.beginPath();
+          gCtx.arc(n.x, n.y, n.radius * 0.8, 0, Math.PI * 2);
+          gCtx.fill();
+        }
+
+        // Update & Render the Blinding Quasar Lightning Jet (Optimal Path)
+        if (state.quasarPath.length > 1) {
+          for (let i = 1; i < state.quasarPath.length - 1; i++) {
+            const pt = state.quasarPath[i];
+            pt.x = pt.baseX + Math.sin(state.time * 9 + i * 1.7) * 2.2 + rand(-0.9, 0.9);
+            pt.y = pt.baseY + Math.cos(state.time * 7 + i) * 1.1;
+          }
+
+          // Layer 1: Wide Outer Atmospheric Quasar Glow
+          gCtx.strokeStyle = pal.quasarGlow;
+          gCtx.globalAlpha = 0.28;
+          gCtx.lineWidth = 14;
+          drawPath(state.quasarPath);
+
+          // Layer 2: Mid Relativistic Plasma Glow
+          gCtx.strokeStyle = pal.quasarGlow;
+          gCtx.globalAlpha = 0.55;
+          gCtx.lineWidth = 6;
+          drawPath(state.quasarPath);
+
+          // Layer 3: Intense White Core Lightning
+          gCtx.strokeStyle = '#ffffff';
+          gCtx.globalAlpha = 0.98;
+          gCtx.lineWidth = 2.4;
+          drawPath(state.quasarPath);
+
+          // Ascending Energy Packet along Quasar Jet
+          const packetIdx = Math.floor(((state.time * 18) % state.quasarPath.length));
+          const packetPt = state.quasarPath[packetIdx];
+          if (packetPt) {
+            const pGrad = gCtx.createRadialGradient(packetPt.x, packetPt.y, 1, packetPt.x, packetPt.y, 22);
+            pGrad.addColorStop(0, '#ffffff');
+            pGrad.addColorStop(0.4, pal.quasarGlow);
+            pGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            gCtx.fillStyle = pGrad;
+            gCtx.beginPath();
+            gCtx.arc(packetPt.x, packetPt.y, 22, 0, Math.PI * 2);
+            gCtx.fill();
+          }
+
+          // Top Apex Quasar Crown Star (Matches the bright top node in screenshot)
+          const apex = state.quasarPath[state.quasarPath.length - 1];
+          drawSingularityCore(apex.x, apex.y, 26, pal.quasarGlow, false);
+        }
+
+        // Bottom Center Singularity Accretion Disk (Origin Point)
+        drawSingularityCore(originX, originY, 34, pal.quasarGlow, true);
+      }
+
+      function drawPath(pts) {
+        gCtx.beginPath();
+        gCtx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          gCtx.lineTo(pts[i].x, pts[i].y);
+        }
+        gCtx.stroke();
+      }
+
+      function drawSingularityCore(x, y, radius, glowColor, withAccretionDisk) {
+        gCtx.globalAlpha = 1.0;
+        if (withAccretionDisk) {
+          gCtx.save();
+          gCtx.translate(x, y);
+          gCtx.scale(1, 0.28);
+          for (let r = 1; r <= 3; r++) {
+            gCtx.strokeStyle = r === 1 ? '#ffffff' : glowColor;
+            gCtx.globalAlpha = 0.45 / r;
+            gCtx.lineWidth = 2.2 - r * 0.5;
+            gCtx.beginPath();
+            gCtx.arc(0, 0, radius * (0.7 + r * 0.45), state.time * 2 * r, state.time * 2 * r + Math.PI * 1.5);
+            gCtx.stroke();
+          }
+          gCtx.restore();
+        }
+
+        const grad = gCtx.createRadialGradient(x, y, 1, x, y, radius);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.25, '#ffffff');
+        grad.addColorStop(0.55, glowColor);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        gCtx.fillStyle = grad;
+        gCtx.beginPath();
+        gCtx.arc(x, y, radius, 0, Math.PI * 2);
+        gCtx.fill();
+      }
+
+      // --- RENDER MODE 2: 3D SPIRAL GALAXY ---
+      function renderModeSpiralGalaxy(w, h, pal) {
+        const cx = w * 0.5;
+        const cy = h * 0.54;
+        const tilt = 0.52; // 3D perspective tilt
+
+        const activeNodes = [];
+
+        // Draw orbiting spiral arm stars
+        for (let i = 0; i < state.spiralStars.length; i++) {
+          const s = state.spiralStars[i];
+          s.angle += s.speed;
+
+          const x = cx + Math.cos(s.angle) * s.radius;
+          const y = cy + Math.sin(s.angle) * s.radius * tilt + s.yOffset;
+
+          gCtx.fillStyle = pal.starTint[s.colorIdx];
+          gCtx.globalAlpha = s.alpha;
+          gCtx.beginPath();
+          gCtx.arc(x, y, s.size, 0, Math.PI * 2);
+          gCtx.fill();
+
+          if (s.isNode && activeNodes.length < 18) {
+            activeNodes.push({ x, y });
+          }
+        }
+
+        // Draw subtle geometric constellation web inside spiral arms
+        gCtx.strokeStyle = pal.quasarGlow;
+        gCtx.lineWidth = 0.6;
+        gCtx.globalAlpha = 0.25;
+        gCtx.beginPath();
+        for (let i = 0; i < activeNodes.length - 1; i++) {
+          gCtx.moveTo(activeNodes[i].x, activeNodes[i].y);
+          gCtx.lineTo(activeNodes[i + 1].x, activeNodes[i + 1].y);
+        }
+        gCtx.stroke();
+
+        // Relativistic Quasar Jet shooting vertically out of the Galactic Core to the Apex
+        const apexX = cx + Math.sin(state.time * 0.8) * 18;
+        const apexY = h * 0.09;
+
+        const jetGrad = gCtx.createLinearGradient(cx, cy, apexX, apexY);
+        jetGrad.addColorStop(0, '#ffffff');
+        jetGrad.addColorStop(0.5, pal.quasarGlow);
+        jetGrad.addColorStop(1, '#ffffff');
+
+        gCtx.strokeStyle = pal.quasarGlow;
+        gCtx.globalAlpha = 0.3;
+        gCtx.lineWidth = 12;
+        gCtx.beginPath();
+        gCtx.moveTo(cx, cy);
+        gCtx.lineTo(apexX, apexY);
+        gCtx.stroke();
+
+        gCtx.strokeStyle = jetGrad;
+        gCtx.globalAlpha = 0.95;
+        gCtx.lineWidth = 2.4;
+        gCtx.beginPath();
+        gCtx.moveTo(cx, cy);
+        gCtx.lineTo(apexX, apexY);
+        gCtx.stroke();
+
+        // Galactic Core & Top Apex
+        drawSingularityCore(cx, cy, 48, pal.quasarGlow, true);
+        drawSingularityCore(apexX, apexY, 22, pal.bridgeMain, false);
+      }
+
+      // --- RENDER MODE 3: WORMHOLE SINGULARITY ---
+      function renderModeWormhole(w, h, pal) {
+        const cx = w * 0.5;
+        const throatY = h * 0.5;
+
+        // Draw Einstein-Rosen Spacetime Rings
+        state.wormholeRings.forEach((ring, idx) => {
+          ring.rotation += ring.speed;
+          const waveX = cx + Math.sin(state.time * 1.5 + idx * 0.3) * 8 * (1 - ring.distFromCenter);
+
+          gCtx.strokeStyle = idx % 3 === 0 ? pal.bridgeMain : pal.quasarGlow;
+          gCtx.globalAlpha = lerp(0.65, 0.18, ring.distFromCenter);
+          gCtx.lineWidth = lerp(2.0, 0.7, ring.distFromCenter);
+
+          gCtx.beginPath();
+          gCtx.ellipse(waveX, ring.yPos, ring.radiusX, ring.radiusY, 0, 0, Math.PI * 2);
+          gCtx.stroke();
+
+          // Orbiting data node on each ring
+          const nodeX = waveX + Math.cos(ring.rotation) * ring.radiusX;
+          const nodeY = ring.yPos + Math.sin(ring.rotation) * ring.radiusY;
+          gCtx.fillStyle = '#ffffff';
+          gCtx.globalAlpha = 0.85;
+          gCtx.beginPath();
+          gCtx.arc(nodeX, nodeY, 1.8, 0, Math.PI * 2);
+          gCtx.fill();
+        });
+
+        // Central Wormhole Bipolar Relativistic Spine
+        gCtx.strokeStyle = '#ffffff';
+        gCtx.globalAlpha = 0.9;
+        gCtx.lineWidth = 2.5;
+        gCtx.beginPath();
+        gCtx.moveTo(cx, h * 0.9);
+        gCtx.lineTo(cx, h * 0.1);
+        gCtx.stroke();
+
+        gCtx.strokeStyle = pal.quasarGlow;
+        gCtx.globalAlpha = 0.35;
+        gCtx.lineWidth = 14;
+        gCtx.beginPath();
+        gCtx.moveTo(cx, h * 0.9);
+        gCtx.lineTo(cx, h * 0.1);
+        gCtx.stroke();
+
+        drawSingularityCore(cx, throatY, 42, pal.bridgeMain, true);
+        drawSingularityCore(cx, h * 0.1, 22, pal.quasarGlow, false);
+        drawSingularityCore(cx, h * 0.9, 22, pal.quasarGlow, false);
+      }
+
+      // --- RENDER CONSTELLATION BRIDGES (Magenta/Gold Spider Lasers) ---
+      function renderConstellationBridges(pal) {
+        for (let i = state.bridges.length - 1; i >= 0; i--) {
+          const b = state.bridges[i];
+          b.progress = Math.min(1, b.progress + 0.08);
+          b.life -= b.decay;
+
+          if (b.life <= 0) {
+            state.bridges.splice(i, 1);
+            continue;
+          }
+
+          const curX = lerp(b.x1, b.x2, b.progress);
+          const curY = lerp(b.y1, b.y2, b.progress);
+
+          // Outer Laser Glow
+          gCtx.strokeStyle = pal.bridgeMain;
+          gCtx.globalAlpha = b.life * 0.45;
+          gCtx.lineWidth = 4.5;
+          gCtx.beginPath();
+          gCtx.moveTo(b.x1, b.y1);
+          gCtx.lineTo(curX, curY);
+          gCtx.stroke();
+
+          // Sharp Inner Laser Beam
+          gCtx.strokeStyle = '#ffffff';
+          gCtx.globalAlpha = b.life * 0.95;
+          gCtx.lineWidth = 1.3;
+          gCtx.beginPath();
+          gCtx.moveTo(b.x1, b.y1);
+          gCtx.lineTo(curX, curY);
+          gCtx.stroke();
+
+          // Glowing Endpoint Nodes & Reticles
+          [
+            { x: b.x1, y: b.y1 },
+            { x: curX, y: curY }
+          ].forEach((pt, idx) => {
+            gCtx.fillStyle = pal.bridgeMain;
+            gCtx.globalAlpha = b.life;
+            gCtx.beginPath();
+            gCtx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2);
+            gCtx.fill();
+
+            if (idx === 1) {
+              gCtx.strokeStyle = pal.bridgeMain;
+              gCtx.lineWidth = 0.9;
+              gCtx.beginPath();
+              gCtx.arc(pt.x, pt.y, 8 + (1 - b.life) * 8, 0, Math.PI * 2);
+              gCtx.stroke();
+            }
+          });
+
+          // Floating Telemetry Pill on Bridge Midpoint (like "opus: fixed, verified" in screenshot)
+          if (b.hasLabel && b.progress > 0.8) {
+            const mx = (b.x1 + b.x2) * 0.5;
+            const my = (b.y1 + b.y2) * 0.5;
+            gCtx.save();
+            gCtx.globalCompositeOperation = 'source-over';
+            gCtx.globalAlpha = b.life * 0.9;
+            gCtx.font = '500 8px "JetBrains Mono", monospace';
+            const textW = gCtx.measureText(b.label).width + 10;
+            gCtx.fillStyle = 'rgba(8, 5, 18, 0.85)';
+            gCtx.strokeStyle = pal.bridgeMain;
+            gCtx.lineWidth = 0.8;
+            gCtx.beginPath();
+            gCtx.roundRect(mx - textW / 2, my - 8, textW, 15, 3);
+            gCtx.fill();
+            gCtx.stroke();
+
+            gCtx.fillStyle = '#f5d0fe';
+            gCtx.textAlign = 'center';
+            gCtx.textBaseline = 'middle';
+            gCtx.fillText(b.label, mx, my);
+            gCtx.restore();
+          }
+        }
+      }
+
+      // --- RENDER SHOCKWAVES & SUPERNOVA PARTICLES ---
+      function renderShockwavesAndParticles(pal) {
+        // Expanding Rings
+        for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+          const sw = state.shockwaves[i];
+          sw.r += 1.4;
+          sw.alpha = Math.max(0, 1 - sw.r / sw.maxR);
+
+          if (sw.alpha <= 0.02) {
+            state.shockwaves.splice(i, 1);
+            continue;
+          }
+
+          gCtx.strokeStyle = pal.bridgeMain;
+          gCtx.globalAlpha = sw.alpha * 0.7;
+          gCtx.lineWidth = 1.4;
+          gCtx.beginPath();
+          gCtx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+          gCtx.stroke();
+        }
+
+        // Supernova Sparks
+        for (let i = state.supernovaParticles.length - 1; i >= 0; i--) {
+          const p = state.supernovaParticles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.96;
+          p.vy *= 0.96;
+          p.alpha -= p.decay;
+
+          if (p.alpha <= 0) {
+            state.supernovaParticles.splice(i, 1);
+            continue;
+          }
+
+          gCtx.fillStyle = pal.starTint[p.colorIdx];
+          gCtx.globalAlpha = p.alpha;
+          gCtx.beginPath();
+          gCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          gCtx.fill();
+        }
+      }
+
+      // =====================================================
+      // MINI HUD CANVASES (TOP WAVE, ENTROPY, CONVERGENCE)
+      // =====================================================
+      function renderTopHorizonWave() {
+        const w = topWaveCanvas.width / state.dpr;
+        const h = topWaveCanvas.height / state.dpr;
+        const pal = PALETTES[state.paletteIndex];
+
+        topCtx.clearRect(0, 0, w, h);
+
+        // Baseline horizontal ticks
+        topCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+        topCtx.lineWidth = 1;
+        topCtx.beginPath();
+        topCtx.moveTo(0, h - 4);
+        topCtx.lineTo(w, h - 4);
+        topCtx.stroke();
+
+        // Smooth arch trajectory curve (like the top bar in the screenshot)
+        topCtx.strokeStyle = '#ffffff';
+        topCtx.lineWidth = 1.5;
+        topCtx.beginPath();
+        for (let x = 0; x <= w; x += 4) {
+          const norm = x / w;
+          const arch = Math.sin(norm * Math.PI) * (h * 0.55);
+          const ripple = Math.sin(norm * 10 - state.time * 3) * 2.2;
+          const y = h - 5 - arch * 0.65 + ripple;
+          if (x === 0) topCtx.moveTo(x, y);
+          else topCtx.lineTo(x, y);
+        }
+        topCtx.stroke();
+
+        // Glowing nodes along the top trajectory
+        const nodePositions = [0.16, 0.38, 0.62, 0.84];
+        nodePositions.forEach((norm, idx) => {
+          const x = norm * w;
+          const arch = Math.sin(norm * Math.PI) * (h * 0.55);
+          const ripple = Math.sin(norm * 10 - state.time * 3) * 2.2;
+          const y = h - 5 - arch * 0.65 + ripple;
+
+          topCtx.fillStyle = idx === state.activeStage ? pal.bridgeMain : '#ffffff';
+          topCtx.beginPath();
+          topCtx.arc(x, y, idx === state.activeStage ? 3.2 : 2.0, 0, Math.PI * 2);
+          topCtx.fill();
+        });
+      }
+
+      function renderEntropyOscilloscope() {
+        const w = entropyCanvas.width / state.dpr;
+        const h = entropyCanvas.height / state.dpr;
+        const pal = PALETTES[state.paletteIndex];
+
+        entCtx.clearRect(0, 0, w, h);
+
+        // Grid lines
+        entCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+        entCtx.lineWidth = 1;
+        entCtx.beginPath();
+        entCtx.moveTo(0, h * 0.45);
+        entCtx.lineTo(w, h * 0.45);
+        entCtx.moveTo(0, h * 0.85);
+        entCtx.lineTo(w, h * 0.85);
+        entCtx.stroke();
+
+        // Upper Wave (High-Entropy Nebula Exploration Wave)
+        entCtx.strokeStyle = 'rgba(226, 232, 240, 0.75)';
+        entCtx.lineWidth = 1.4;
+        entCtx.beginPath();
+        for (let x = 0; x <= w; x += 3) {
+          const norm = x / w;
+          const y = h * 0.32 + Math.sin(norm * 8 - state.time * 2.5) * 6 + Math.cos(norm * 15 + state.time * 1.8) * 3;
+          if (x === 0) entCtx.moveTo(x, y);
+          else entCtx.lineTo(x, y);
+        }
+        entCtx.stroke();
+
+        // Lower Spike Detector Wave (Matches the sharp rectangular spike in screenshot's bottom-left box!)
+        const spikeCenter = ((state.time * 0.22) % 1) * w;
+        entCtx.strokeStyle = pal.quasarGlow;
+        entCtx.lineWidth = 1.4;
+        entCtx.beginPath();
+        for (let x = 0; x <= w; x += 2) {
+          const dist = Math.abs(x - spikeCenter);
+          let y = h * 0.86;
+          if (dist < 7) {
+            y = h * 0.56; // Sharp anomaly detection pulse
+          } else if (dist < 11) {
+            y = lerp(h * 0.56, h * 0.86, (dist - 7) / 4);
+          }
+          if (x === 0) entCtx.moveTo(x, y);
+          else entCtx.lineTo(x, y);
+        }
+        entCtx.stroke();
+      }
+
+      function renderConvergenceGraph() {
+        const w = convergenceCanvas.width / state.dpr;
+        const h = convergenceCanvas.height / state.dpr;
+        const pal = PALETTES[state.paletteIndex];
+
+        convCtx.clearRect(0, 0, w, h);
+
+        // Subtle baseline
+        convCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+        convCtx.lineWidth = 1;
+        convCtx.beginPath();
+        convCtx.moveTo(0, h - 6);
+        convCtx.lineTo(w, h - 6);
+        convCtx.stroke();
+
+        // Secondary grey reference curve
+        convCtx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+        convCtx.lineWidth = 1.2;
+        convCtx.beginPath();
+        for (let x = 0; x <= w; x += 4) {
+          const norm = x / w;
+          const y = h - 8 - Math.pow(norm, 1.3) * (h * 0.55) + Math.sin(norm * 12 + state.time * 2) * 1.5;
+          if (x === 0) convCtx.moveTo(x, y);
+          else convCtx.lineTo(x, y);
+        }
+        convCtx.stroke();
+
+        // Primary Magenta/Cyan Ascending Convergence Curve (Matches bottom-right graph in screenshot)
+        convCtx.strokeStyle = pal.bridgeMain;
+        convCtx.lineWidth = 1.8;
+        convCtx.beginPath();
+        for (let x = 0; x <= w; x += 3) {
+          const norm = x / w;
+          const stepped = Math.pow(norm, 1.15) * (h * 0.76) + Math.sin(norm * 18 - state.time * 3) * 2.2;
+          const y = Math.max(6, h - 7 - stepped);
+          if (x === 0) convCtx.moveTo(x, y);
+          else convCtx.lineTo(x, y);
+        }
+        convCtx.stroke();
+      }
+
+      // =====================================================
+      // TELEMETRY & PIPELINE STAGE CYCLING
+      // =====================================================
+      function setPipelineStage(stageIdx) {
+        state.activeStage = stageIdx;
+        const stageEls = document.querySelectorAll('#pipelineStages .stage-item');
+        stageEls.forEach((el, idx) => {
+          el.classList.toggle('active', idx === stageIdx);
+        });
+
+        const stageMessages = [
+          {
+            title: 'STAGE 1 • NEBULA EXPANSION',
+            sub1: 'MAPPING 2,840 DEEP SPACE FILAMENTS',
+            sub2: 'ASTRAL: BROADCASTING STARDUST RAYS'
+          },
+          {
+            title: 'HANDOFF • NEBULA → QUASAR',
+            sub1: 'WIDE STARDUST IN, RELATIVISTIC JET OUT',
+            sub2: 'ASTRAL: FOLDING CONSTELLATION BRIDGES'
+          },
+          {
+            title: 'STAGE 3 • WORMHOLE REPAIR',
+            sub1: 'FOLDING NON-EULERIAN SPACETIME ANOMALY',
+            sub2: 'QUASAR: GRAVITATIONAL LENS LOCKED'
+          },
+          {
+            title: 'STAGE 4 • CONSTELLATION LOCK',
+            sub1: 'CONVERGENCE REACHED AT APEX SINGULARITY',
+            sub2: 'ASTRAL: ALL BRIDGES SYNCHRONIZED'
+          }
+        ];
+
+        const msg = stageMessages[stageIdx];
+        handoffTitle.textContent = msg.title;
+        handoffSub1.textContent = msg.sub1;
+        handoffSub2.textContent = msg.sub2;
+      }
+
+      // =====================================================
+      // MAIN ANIMATION LOOP
+      // =====================================================
+      function animate(now) {
+        state.time += 0.016;
+        state.frameCount++;
+
+        // Calculate FPS & Periodic Telemetry Updates
+        if (now - state.lastFpsUpdate >= 500) {
+          state.fps = Math.min(60, Math.round((state.frameCount * 1000) / (now - state.lastFpsUpdate)));
+          fpsCounter.textContent = state.fps;
+          state.frameCount = 0;
+          state.lastFpsUpdate = now;
+
+          // Fluctuate astrophysical telemetry numbers
+          entropyValA.textContent = 'H=' + rand(2.4, 2.95).toFixed(2);
+          entropyValB.textContent = 'H=' + rand(0.04, 0.18).toFixed(2);
+          handoffCoords.textContent = `RA ${randInt(10, 23)}h${randInt(10, 59)}m`;
+          statLinks.textContent = state.bridges.length * 2 + randInt(4, 9);
+        }
+
+        // Periodically spawn new Constellation Laser Bridges
+        if (Math.random() < 0.055) {
+          spawnConstellationBridge();
+        }
+
+        // Automatically cycle the 4-stage pipeline every ~3.2 seconds
+        if (Math.floor(state.time * 10) % 32 === 0 && Math.random() < 0.3) {
+          setPipelineStage((state.activeStage + 1) % 4);
+        }
+
+        renderGalaxyCanvas();
+        renderTopHorizonWave();
+        renderEntropyOscilloscope();
+        renderConvergenceGraph();
+
+        requestAnimationFrame(animate);
+      }
+
+      // =====================================================
+      // INTERACTION & UI EVENT LISTENERS
+      // =====================================================
+      function initEvents() {
+        window.addEventListener('resize', resizeAllCanvases);
+
+        // Canvas Click / Touch Drag to spawn Supernova & Bridges
+        let isPointerDown = false;
+        function handlePointer(e) {
+          const rect = galaxyCanvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+          triggerSupernova(x, y);
+          if (touchHint) touchHint.style.opacity = '0';
+        }
+
+        galaxyCanvas.addEventListener('pointerdown', (e) => {
+          isPointerDown = true;
+          handlePointer(e);
+        });
+
+        galaxyCanvas.addEventListener('pointermove', (e) => {
+          if (!isPointerDown) return;
+          if (Math.random() < 0.35) handlePointer(e);
+        });
+
+        window.addEventListener('pointerup', () => {
+          isPointerDown = false;
+        });
+
+        // Mode Switch Buttons
+        document.querySelectorAll('.mode-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.mode = btn.dataset.mode;
+
+            const modeLabels = {
+              tree: 'COSMIC QUASAR TREE',
+              spiral: 'SPIRAL GALAXY CONSTELLATION',
+              wormhole: 'WORMHOLE SINGULARITY'
+            };
+            activeModeFooter.textContent = modeLabels[state.mode];
+            triggerSupernova(state.width * 0.5, state.height * 0.5);
+          });
+        });
+
+        // Palette Switch Buttons
+        document.querySelectorAll('.palette-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.palette-btn').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.paletteIndex = parseInt(btn.dataset.palette, 10);
+          });
+        });
+
+        // Pipeline Stage Click
+        document.querySelectorAll('#pipelineStages .stage-item').forEach((item) => {
+          item.addEventListener('click', () => {
+            const idx = parseInt(item.dataset.stage, 10);
+            setPipelineStage(idx);
+            triggerSupernova();
+          });
+        });
+
+        // Manual Supernova Pulse Button
+        document.getElementById('btnSupernova').addEventListener('click', () => {
+          triggerSupernova(state.width * 0.5, state.height * 0.42);
+        });
+
+        // Aspect Ratio Toggle (9:16 TikTok vs Fullscreen)
+        const btnAspect = document.getElementById('btnAspect');
+        btnAspect.addEventListener('click', () => {
+          if (state.aspectMode === '9:16') {
+            state.aspectMode = 'full';
+            appFrame.classList.remove('frame-9-16');
+            appFrame.classList.add('frame-full');
+            btnAspect.textContent = '🖥️ FULLSCREEN';
+          } else {
+            state.aspectMode = '9:16';
+            appFrame.classList.remove('frame-full');
+            appFrame.classList.add('frame-9-16');
+            btnAspect.textContent = '9:16 TIKTOK';
+          }
+          setTimeout(resizeAllCanvases, 50);
+        });
+
+        // Hide UI / Clean Screen Recording Mode
+        const controlDock = document.getElementById('controlDock');
+        const btnHideUI = document.getElementById('btnHideUI');
+        const btnRestoreUI = document.getElementById('btnRestoreUI');
+
+        function toggleRecordMode(forceState) {
+          state.uiHidden = forceState !== undefined ? forceState : !state.uiHidden;
+          if (state.uiHidden) {
+            controlDock.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+            btnRestoreUI.classList.remove('hidden');
+            if (touchHint) touchHint.style.opacity = '0';
+          } else {
+            controlDock.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+            btnRestoreUI.classList.add('hidden');
+          }
+        }
+
+        btnHideUI.addEventListener('click', () => toggleRecordMode(true));
+        btnRestoreUI.addEventListener('click', () => toggleRecordMode(false));
+
+        // Keyboard shortcut 'H' to toggle UI for clean screen recording
+        window.addEventListener('keydown', (e) => {
+          if (e.key.toLowerCase() === 'h') {
+            toggleRecordMode();
+          } else if (e.code === 'Space') {
+            e.preventDefault();
+            triggerSupernova();
+          }
+        });
+
+        // Auto-fade touch hint after 5 seconds
+        setTimeout(() => {
+          if (touchHint) touchHint.style.opacity = '0';
+        }, 5000);
+      }
+
+      // Start on load
+      window.onload = function () {
+        resizeAllCanvases();
+        initEvents();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>
